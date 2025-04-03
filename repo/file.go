@@ -1,20 +1,20 @@
 package repo
 
 import (
-	"bufio"
-	"fmt"
+	"encoding/json"
 	"io/fs"
 	"log"
 	"os"
 	"path/filepath"
-	"strings"
+
+	"github.com/lonord/rss-torrent-downloader/worker"
 )
 
 type FileRepo struct {
 	Dir string
 }
 
-func (r *FileRepo) Query(fn func(string, string, map[string]string)) error {
+func (r *FileRepo) Query(fn func(*worker.SubscriptionEntry)) error {
 	return filepath.Walk(r.Dir, func(path string, info fs.FileInfo, err0 error) error {
 		if !info.IsDir() && shouldIncludeExt(filepath.Ext(path)) {
 			file, err := os.Open(path)
@@ -22,51 +22,35 @@ func (r *FileRepo) Query(fn func(string, string, map[string]string)) error {
 				log.Println("read file error:", err)
 				return nil
 			}
-			scanner := bufio.NewScanner(file)
-			var firstLine string
-			options := map[string]string{}
-			for scanner.Scan() {
-				line := strings.TrimSpace(scanner.Text())
-				if strings.HasPrefix(line, "#") || strings.HasPrefix(line, "//") {
-					continue
-				}
-				if firstLine == "" {
-					firstLine = line
-				} else {
-					parts := strings.Split(line, "=")
-					if len(parts) == 2 {
-						key := strings.TrimSpace(parts[0])
-						value := strings.TrimSpace(parts[1])
-						options[key] = value
-					}
-				}
+			defer file.Close()
+			var entry worker.SubscriptionEntry
+			if err := json.NewDecoder(file).Decode(&entry); err != nil {
+				log.Println("decode file error:", err)
+				return nil
 			}
-			if firstLine != "" {
-				fn(path, firstLine, options)
+			if entry.RssURL != "" {
+				entry.ID = path
+				fn(&entry)
 			}
 		}
 		return nil
 	})
 }
 
-func (r *FileRepo) Save(path string, rssURL string, options map[string]string) error {
-	target := filepath.Join(r.Dir, path)
+func (r *FileRepo) Save(entry *worker.SubscriptionEntry) error {
+	target := entry.ID
 	f, err := os.Create(target)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
-	fmt.Fprintln(f, rssURL)
-	for k, v := range options {
-		fmt.Fprintf(f, "%s=%s\n", k, v)
-	}
-	return nil
+	return json.NewEncoder(f).Encode(entry)
 }
 
 func (r *FileRepo) Delete(path string) error {
-	return os.Remove(filepath.Join(r.Dir, path))
+	return os.Remove(path)
 }
 
 func shouldIncludeExt(ext string) bool {
-	return ext == ".txt" || ext == ".ini" || ext == ".conf"
+	return ext == ".json"
 }

@@ -5,6 +5,8 @@ import (
 	"encoding/xml"
 	"errors"
 	"net/http"
+	"slices"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -19,6 +21,15 @@ type Work struct {
 	Name     string
 	Jobs     []*Job
 	Aria2Opt map[string]string
+}
+
+func (w *Work) RemoveCompletedJob(completed []string) {
+	for i := len(w.Jobs) - 1; i >= 0; i-- {
+		job := w.Jobs[i]
+		if slices.Contains(completed, job.InfoHash) {
+			w.Jobs = slices.Delete(w.Jobs, i, i+1)
+		}
+	}
 }
 
 type Job struct {
@@ -76,11 +87,22 @@ func Poll(ctx context.Context, rssURL string, options map[string]string) (*Work,
 	}
 	nameFilter, nameFilterEnable := options["filter"]
 	timeFilter, timeFilterEnable := options["time"]
+	sizeFilter, sizeFilterEnable := func() (uint64, bool) {
+		s, ok := options["size"]
+		if !ok {
+			return 0, false
+		}
+		n, err := strconv.ParseUint(s, 10, 64)
+		return n, err == nil
+	}()
 	for _, item := range rss.Items {
 		if nameFilterEnable && !strings.Contains(item.Title, nameFilter) {
 			continue
 		}
 		if timeFilterEnable && timeSmallerThan(item.Entry.PubDate, timeFilter) {
+			continue
+		}
+		if sizeFilterEnable && item.Entry.ContentLength > sizeFilter {
 			continue
 		}
 		var job *Job

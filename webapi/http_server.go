@@ -34,7 +34,7 @@ func (s *HTTPServer) handleSubmit(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return nil, err
 		}
-		result, err := s.Worker.PollSingle(rssURL, options, false)
+		result, err := s.Worker.PollSingle(rssURL, options)
 		if err != nil {
 			return nil, err
 		}
@@ -46,11 +46,11 @@ func (s *HTTPServer) handleSubmit(w http.ResponseWriter, r *http.Request) {
 func (s *HTTPServer) handleList(w http.ResponseWriter, r *http.Request) {
 	handleJSON(w, func() (interface{}, error) {
 		list := []interface{}{}
-		s.Worker.Repo.Query(func(id, rssURL string, options map[string]string) {
+		s.Worker.Repo.Query(func(entry *worker.SubscriptionEntry) {
 			item := map[string]interface{}{
-				"id":      id,
-				"rss":     rssURL,
-				"options": options,
+				"id":      entry.ID,
+				"rss":     entry.RssURL,
+				"options": entry.Options,
 			}
 			list = append(list, item)
 		})
@@ -67,10 +67,15 @@ func (s *HTTPServer) handleAdd(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return nil, err
 		}
-		if err := s.Worker.Repo.Save(id, rssURL, options); err != nil {
+		entry := &worker.SubscriptionEntry{
+			ID:      id,
+			Options: options,
+			RssURL:  rssURL,
+		}
+		if err := s.Worker.Repo.Save(entry); err != nil {
 			return nil, err
 		}
-		if _, err := s.Worker.PollSingle(rssURL, options, true); err != nil {
+		if _, err := s.Worker.PollSingle(rssURL, options); err != nil {
 			return nil, err
 		}
 		log.Printf("webapi: add success %s, %+v\n", rssURL, options)
@@ -116,15 +121,10 @@ func handleJSON(w http.ResponseWriter, fn func() (interface{}, error)) {
 func parseURLAndOptions(form url.Values) (string, string, map[string]string, error) {
 	options := map[string]string{}
 	var rssURL string
-	var id string
 	var name string
 	for k, v := range form {
 		if k == "rss" || k == "url" {
 			rssURL = v[0]
-			continue
-		}
-		if k == "id" {
-			id = v[0]
 			continue
 		}
 		if k == "name" {
@@ -136,13 +136,12 @@ func parseURLAndOptions(form url.Values) (string, string, map[string]string, err
 	if rssURL == "" {
 		return "", "", nil, errors.New("missing rss url")
 	}
-	if id == "" {
-		if name != "" {
-			id = name + ".txt"
-		} else {
-			hash := md5.Sum([]byte(rssURL))
-			id = hex.EncodeToString(hash[:]) + ".txt"
-		}
+	var id string
+	if name != "" {
+		id = name + ".json"
+	} else {
+		hash := md5.Sum([]byte(rssURL))
+		id = hex.EncodeToString(hash[:]) + ".json"
 	}
 	return id, rssURL, options, nil
 }

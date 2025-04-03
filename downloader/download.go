@@ -1,9 +1,11 @@
 package downloader
 
 type DownloadResult struct {
-	Added  uint32 `json:"added"`
-	Failed uint32 `json:"failed"`
-	Exists uint32 `json:"exists"`
+	Added     uint32
+	Failed    uint32
+	Running   uint32
+	Completed []string
+	Removed   []string
 }
 
 func (r DownloadResult) HasUpdate() bool {

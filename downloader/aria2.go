@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"log"
 	"net/http"
 	"path"
@@ -78,8 +79,17 @@ func (d *Aria2Downloader) BatchDownload(ctx context.Context, works []*poller.Wor
 					log.Printf("aria2: add torrent %s@%s\n", job.InfoHash, work.Name)
 					r.Added++
 				}
+			} else if item.Status == "complete" {
+				// remove task from aria2 server
+				if err := d.remove(ctx, item.GID); err != nil {
+					log.Printf("remove task from aria2c error: %s, gid: %s, infoHash: %s\n", err, item.GID, item.InfoHash)
+				} else {
+					r.Completed = append(r.Completed, job.InfoHash)
+				}
+			} else if item.Status == "removed" {
+				r.Removed = append(r.Removed, job.InfoHash)
 			} else {
-				r.Exists++
+				r.Running++
 			}
 		}
 		results[i] = r
@@ -91,6 +101,19 @@ func (d *Aria2Downloader) addTorrent(ctx context.Context, options map[string]int
 	options["follow-torrent"] = "mem"
 	options["seed-time"] = 0
 	req := d.newReq("aria2.addTorrent", job.Content, []string{}, options)
+	var resp AddResponse
+	err := d.rpcCall(ctx, req, &resp)
+	if err != nil {
+		return err
+	}
+	if resp.Error != nil {
+		return errors.New(resp.Error["message"].(string))
+	}
+	return nil
+}
+
+func (d *Aria2Downloader) remove(ctx context.Context, gid string) error {
+	req := d.newReq("aria2.removeDownloadResult", gid)
 	var resp AddResponse
 	err := d.rpcCall(ctx, req, &resp)
 	if err != nil {
@@ -150,7 +173,12 @@ func (d *Aria2Downloader) rpcCall(ctx context.Context, rpc *RPCRequest, out inte
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return errors.New("bad status code: " + resp.Status)
+		b, err := io.ReadAll(resp.Body)
+		if err == nil {
+			return errors.New("bad status code: " + resp.Status + ", result: " + string(b))
+		} else {
+			return errors.New("bad status code: " + resp.Status)
+		}
 	}
 	return json.NewDecoder(resp.Body).Decode(out)
 }
