@@ -138,10 +138,10 @@ func parseURLAndOptions(form url.Values) (string, string, map[string]string, err
 	}
 	var id string
 	if name != "" {
-		id = name + ".json"
+		id = name
 	} else {
 		hash := md5.Sum([]byte(rssURL))
-		id = hex.EncodeToString(hash[:]) + ".json"
+		id = hex.EncodeToString(hash[:])
 	}
 	return id, rssURL, options, nil
 }
