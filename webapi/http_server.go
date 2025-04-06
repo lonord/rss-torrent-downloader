@@ -48,9 +48,10 @@ func (s *HTTPServer) handleList(w http.ResponseWriter, r *http.Request) {
 		list := []interface{}{}
 		s.Worker.Repo.Query(func(entry *worker.SubscriptionEntry) {
 			item := map[string]interface{}{
-				"id":      entry.ID,
-				"rss":     entry.RssURL,
-				"options": entry.Options,
+				"id":        entry.ID,
+				"rss":       entry.RssURL,
+				"options":   entry.Options,
+				"completed": len(entry.Completed),
 			}
 			list = append(list, item)
 		})
