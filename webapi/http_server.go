@@ -124,6 +124,9 @@ func parseURLAndOptions(form url.Values) (string, string, map[string]string, err
 	var rssURL string
 	var name string
 	for k, v := range form {
+		if len(v) == 0 || (len(v) == 1 && v[0] == "") {
+			continue
+		}
 		if k == "rss" || k == "url" {
 			rssURL = v[0]
 			continue
