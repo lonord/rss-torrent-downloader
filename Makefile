@@ -1,5 +1,5 @@
 APP_NAME := rss-torrent-dl
-APP_VERSION := 2.3
+APP_VERSION := 2.4
 BUILD_TIME := $(shell date "+%F %T %Z")
 PWD := $(shell pwd)
 OUTDIR ?= $(PWD)/build

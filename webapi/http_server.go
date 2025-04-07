@@ -55,7 +55,7 @@ func (s *HTTPServer) handleList(w http.ResponseWriter, r *http.Request) {
 			}
 			list = append(list, item)
 		})
-		return list, nil
+		return map[string]interface{}{"result": list}, nil
 	})
 }
 
@@ -103,7 +103,7 @@ func (s *HTTPServer) handleDelete(w http.ResponseWriter, r *http.Request) {
 
 func handleJSON(w http.ResponseWriter, fn func() (interface{}, error)) {
 	h := w.Header()
-	h.Set("Content-Type", "text/json")
+	h.Set("Content-Type", "application/json; charset=UTF-8")
 	data, err := fn()
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
