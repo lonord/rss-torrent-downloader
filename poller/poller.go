@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/xml"
 	"errors"
+	"log"
 	"net/http"
 	"slices"
 	"strconv"
@@ -105,22 +106,12 @@ func Poll(ctx context.Context, rssURL string, options map[string]string) (*Work,
 		if sizeFilterEnable && item.Entry.ContentLength > sizeFilter {
 			continue
 		}
-		var job *Job
-		for _, p := range pollers {
-			job0, ok, err := p.Poll(ctx, item, options)
-			if err != nil {
-				return nil, err
-			}
-			if ok {
-				job = job0
-				break
-			}
+		job, err := pollItem(ctx, item, options)
+		if err != nil {
+			log.Printf("ignore poll failed item with error: %s, title: %s, type: %s, url: %s\n", err, item.Title, item.Enclosure.Type, item.Enclosure.URL)
+			continue
 		}
-		if job != nil {
-			w.Jobs = append(w.Jobs, job)
-		} else {
-			return nil, errors.New("no poller found for rss: " + rssURL + ", item: " + item.Title + ", type: " + item.Enclosure.Type)
-		}
+		w.Jobs = append(w.Jobs, job)
 	}
 	if trim, ok := options["trim"]; ok {
 		w.Name = strings.TrimPrefix(w.Name, trim)
@@ -149,6 +140,20 @@ func fetchRSS(ctx context.Context, rssURL string) (*RSS, error) {
 		return nil, err
 	}
 	return rssWrapper.RSS, nil
+}
+
+func pollItem(ctx context.Context, item *RSSItem, options map[string]string) (*Job, error) {
+	ctx2, cancel := context.WithTimeout(ctx, time.Second*10)
+	defer cancel()
+	for _, p := range pollers {
+		if job, ok, err := p.Poll(ctx2, item, options); ok {
+			if err != nil {
+				return nil, err
+			}
+			return job, nil
+		}
+	}
+	return nil, errors.New("poller not found")
 }
 
 func timeSmallerThan(t1, t2 string) bool {

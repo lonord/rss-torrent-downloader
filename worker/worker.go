@@ -69,7 +69,7 @@ func (w *Worker) doPoll() {
 	entries := []*SubscriptionEntry{}
 	w.Repo.Query(func(entry *SubscriptionEntry) {
 		allCount++
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute*3)
 		defer cancel()
 		work, err := poller.Poll(ctx, entry.RssURL, entry.Options)
 		if err != nil {
