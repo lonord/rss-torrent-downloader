@@ -58,7 +58,9 @@ func (d *Aria2Downloader) BatchDownload(ctx context.Context, works []*poller.Wor
 	}
 	itemMap := make(map[string]*TellItem)
 	for _, item := range items {
-		itemMap[item.InfoHash] = &item
+		if _, alreadyExist := itemMap[item.InfoHash]; !alreadyExist || item.Status == "active" || item.Status == "waiting" || item.Status == "paused" {
+			itemMap[item.InfoHash] = &item
+		}
 	}
 	results := make([]DownloadResult, len(works))
 	for i, work := range works {
