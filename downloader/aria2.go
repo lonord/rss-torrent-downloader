@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"path"
+	"path/filepath"
 
 	"github.com/google/uuid"
 	"github.com/lonord/rss-torrent-downloader/poller"
@@ -44,6 +45,12 @@ type TellItem struct {
 	TotalLength     string `json:"totalLength"`
 	DownloadSpeed   string `json:"downloadSpeed"`
 	InfoHash        string `json:"infoHash"`
+	Files           []File `json:"files"`
+}
+
+type File struct {
+	Path   string `json:"path"`
+	Length string `json:"length"`
 }
 
 type TellResponse struct {
@@ -87,6 +94,7 @@ func (d *Aria2Downloader) BatchDownload(ctx context.Context, works []*poller.Wor
 					log.Printf("remove task from aria2c error: %s, gid: %s, infoHash: %s\n", err, item.GID, item.InfoHash)
 				} else {
 					r.Completed = append(r.Completed, job.InfoHash)
+					r.CompletedFiles = append(r.CompletedFiles, item.filePaths()...)
 				}
 			} else if item.Status == "removed" {
 				r.Removed = append(r.Removed, job.InfoHash)
@@ -97,6 +105,16 @@ func (d *Aria2Downloader) BatchDownload(ctx context.Context, works []*poller.Wor
 		results[i] = r
 	}
 	return results, nil
+}
+
+func (item *TellItem) filePaths() []string {
+	paths := make([]string, 0, len(item.Files))
+	for _, file := range item.Files {
+		if file.Path != "" {
+			paths = append(paths, filepath.Base(file.Path))
+		}
+	}
+	return paths
 }
 
 func (d *Aria2Downloader) addTorrent(ctx context.Context, options map[string]interface{}, job *poller.Job) error {
@@ -128,7 +146,7 @@ func (d *Aria2Downloader) remove(ctx context.Context, gid string) error {
 }
 
 func (d *Aria2Downloader) tellAll(ctx context.Context) ([]TellItem, error) {
-	columns := []string{"gid", "status", "completedLength", "totalLength", "downloadSpeed", "infoHash"}
+	columns := []string{"gid", "status", "completedLength", "totalLength", "downloadSpeed", "infoHash", "files"}
 	var items []TellItem
 	if err := d.rpcCallTell(ctx, d.newReq("aria2.tellActive", columns), &items); err != nil {
 		return nil, err

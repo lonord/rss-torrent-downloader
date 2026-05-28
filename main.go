@@ -32,6 +32,7 @@ var flags struct {
 	secret       string
 	interval     int
 	httpAddr     string
+	onComplete   string
 }
 
 func init() {
@@ -42,6 +43,7 @@ func init() {
 	flag.StringVar(&flags.secret, "secret", "", "aria2 secret token")
 	flag.IntVar(&flags.interval, "interval", 60, "interval of `minutes` to poll")
 	flag.StringVar(&flags.httpAddr, "http", ":6900", "`addr` for http server")
+	flag.StringVar(&flags.onComplete, "on-complete-script", "", "`path` to script or executable invoked with completed file paths")
 }
 
 func main() {
@@ -52,8 +54,9 @@ func main() {
 	}
 
 	w := &worker.Worker{
-		Repo:     &repo.FileRepo{Dir: flags.subscription},
-		Interval: time.Minute * time.Duration(flags.interval),
+		Repo:             &repo.FileRepo{Dir: flags.subscription},
+		Interval:         time.Minute * time.Duration(flags.interval),
+		OnCompleteScript: flags.onComplete,
 		Down: &downloader.Aria2Downloader{
 			URL:    flags.aria2,
 			Secret: flags.secret,

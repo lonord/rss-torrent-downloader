@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log"
+	"os/exec"
 	"sync"
 	"time"
 
@@ -47,9 +48,10 @@ type SubscriptionRepo interface {
 }
 
 type Worker struct {
-	Interval time.Duration
-	Repo     SubscriptionRepo
-	Down     Downloader
+	Interval         time.Duration
+	Repo             SubscriptionRepo
+	Down             Downloader
+	OnCompleteScript string
 
 	mu sync.Mutex
 }
@@ -92,6 +94,7 @@ func (w *Worker) doPoll() {
 		return
 	}
 	log.Printf("| Add/Error/Complete | Name\n")
+	completedFiles := []string{}
 	for i, r := range results {
 		if len(r.Completed) > 0 {
 			entry := entries[i]
@@ -101,9 +104,25 @@ func (w *Worker) doPoll() {
 				}
 			}
 		}
+		completedFiles = append(completedFiles, r.CompletedFiles...)
 		log.Printf("| %4d / %4d / %4d | %s\n", r.Added, r.Failed, len(r.Completed), works[i].Name)
 	}
+	w.runOnCompleteScript(completedFiles)
 	log.Printf("| %d polled, %d dispatched\n", allCount, len(results))
+}
+
+func (w *Worker) runOnCompleteScript(completedFiles []string) {
+	if w.OnCompleteScript == "" || len(completedFiles) == 0 {
+		return
+	}
+	cmd := exec.Command(w.OnCompleteScript, completedFiles...)
+	out, err := cmd.CombinedOutput()
+	if len(out) > 0 {
+		log.Printf("on complete script output: %s", out)
+	}
+	if err != nil {
+		log.Printf("on complete script %s error: %s\n", w.OnCompleteScript, err)
+	}
 }
 
 func (w *Worker) PollSingle(rssURL string, options map[string]string) (downloader.DownloadResult, error) {
@@ -122,5 +141,6 @@ func (w *Worker) PollSingle(rssURL string, options map[string]string) (downloade
 	if len(results) != 1 {
 		return downloader.DownloadResult{}, errors.New("unexpected result count")
 	}
+	w.runOnCompleteScript(results[0].CompletedFiles)
 	return results[0], nil
 }

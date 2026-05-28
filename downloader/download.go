@@ -1,11 +1,12 @@
 package downloader
 
 type DownloadResult struct {
-	Added     uint32
-	Failed    uint32
-	Running   uint32
-	Completed []string
-	Removed   []string
+	Added          uint32
+	Failed         uint32
+	Running        uint32
+	Completed      []string
+	CompletedFiles []string
+	Removed        []string
 }
 
 func (r DownloadResult) HasUpdate() bool {
